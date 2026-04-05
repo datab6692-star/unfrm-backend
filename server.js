@@ -32,11 +32,9 @@ app.get("/", (req, res) => {
   res.send("UNFRM Backend Running 🚀");
 });
 
-/// 🔥 SIGNUP (WITH BCRYPT)
+/// 🔥 SIGNUP
 app.post("/signup", async (req, res) => {
   const { email, password } = req.body;
-
-  console.log("Signup request:", email);
 
   try {
     if (!email || !password) {
@@ -51,21 +49,16 @@ app.post("/signup", async (req, res) => {
       return res.json({ success: false, message: "User already exists" });
     }
 
-    /// 🔐 HASH PASSWORD
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const newUser = await User.create({
+    await User.create({
       email: cleanEmail,
       password: hashedPassword,
     });
 
-    console.log("User created:", newUser);
-
-    res.json({ success: true, message: "Signup successful" });
+    res.json({ success: true });
 
   } catch (error) {
-    console.log("SIGNUP ERROR:", error);
-
     if (error.code === 11000) {
       return res.json({ success: false, message: "User already exists" });
     }
@@ -74,11 +67,9 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-/// 🔥 LOGIN (WITH BCRYPT)
+/// 🔥 LOGIN
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
-
-  console.log("Login request:", email);
 
   try {
     const cleanEmail = email.toLowerCase().trim();
@@ -89,19 +80,44 @@ app.post("/login", async (req, res) => {
       return res.json({ success: false, message: "User not found" });
     }
 
-    /// 🔐 COMPARE PASSWORD
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (isMatch) {
-      res.json({ success: true, message: "Login success" });
+      res.json({ success: true });
     } else {
       res.json({ success: false, message: "Wrong password" });
     }
 
   } catch (error) {
-    console.log("LOGIN ERROR:", error);
     res.json({ success: false, message: "Login failed" });
   }
+});
+
+/// 🔥 PRODUCTS (NEW 🔥🔥🔥)
+const products = [
+  {
+    name: "UNFRM Street Tee",
+    price: 799,
+    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab",
+    link: "https://zara.com",
+  },
+  {
+    name: "Oversized Black Tee",
+    price: 999,
+    image: "https://images.unsplash.com/photo-1512436991641-6745cdb1723f",
+    link: "https://hm.com",
+  },
+  {
+    name: "Minimal White Tee",
+    price: 699,
+    image: "https://images.unsplash.com/photo-1503341504253-dff4815485f1",
+    link: "https://nike.com",
+  },
+];
+
+/// 🔥 GET PRODUCTS API
+app.get("/products", (req, res) => {
+  res.json(products);
 });
 
 /// 🔥 START SERVER
