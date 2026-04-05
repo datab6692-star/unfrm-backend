@@ -8,13 +8,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/// 🔥 CONNECT MONGODB ATLAS
+/// 🔥 CONNECT MONGODB (FIXED)
 mongoose.connect(
-  "mongodb+srv://unfrm:unfrm123@cluster0.9ftvups.mongodb.net/unfrm?retryWrites=true&w=majority",
-  {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  }
+  "mongodb+srv://unfrm:unfrm123@cluster0.9ftvups.mongodb.net/unfrm?retryWrites=true&w=majority"
 )
 .then(() => console.log("MongoDB Connected ✅"))
 .catch(err => console.log("Mongo Error:", err));
@@ -93,7 +89,7 @@ app.post("/login", async (req, res) => {
   }
 });
 
-/// 🔥 PRODUCTS (NEW 🔥🔥🔥)
+/// 🔥 PRODUCTS DATA
 const products = [
   {
     name: "UNFRM Street Tee",
