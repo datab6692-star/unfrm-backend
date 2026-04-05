@@ -9,14 +9,18 @@ app.use(express.json());
 
 /// 🔥 CONNECT MONGODB ATLAS
 mongoose.connect(
-  "mongodb+srv://unfrm:unfrm123@cluster0.9ftvups.mongodb.net/unfrm?retryWrites=true&w=majority"
+  "mongodb+srv://unfrm:unfrm123@cluster0.9ftvups.mongodb.net/unfrm?retryWrites=true&w=majority",
+  {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  }
 )
 .then(() => console.log("MongoDB Connected ✅"))
 .catch(err => console.log("Mongo Error:", err));
 
-/// 🔥 USER MODEL (ADD REQUIRED)
+/// 🔥 USER MODEL
 const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true, trim: true },
   password: { type: String, required: true },
 });
 
@@ -34,24 +38,39 @@ app.post("/signup", async (req, res) => {
   console.log("Signup request:", email, password);
 
   try {
+    // ✅ Validation
     if (!email || !password) {
       return res.json({ success: false, message: "Missing fields" });
     }
 
-    const userExists = await User.findOne({ email });
+    // ✅ Normalize email (IMPORTANT FIX)
+    const cleanEmail = email.toLowerCase().trim();
+
+    // ✅ Check existing
+    const userExists = await User.findOne({ email: cleanEmail });
 
     if (userExists) {
       return res.json({ success: false, message: "User already exists" });
     }
 
-    const newUser = await User.create({ email, password });
+    // ✅ Save user
+    const newUser = await User.create({
+      email: cleanEmail,
+      password,
+    });
 
     console.log("User created:", newUser);
 
-    res.json({ success: true });
+    res.json({ success: true, message: "Signup successful" });
 
   } catch (error) {
-    console.log("SIGNUP ERROR:", error); // 🔥 VERY IMPORTANT
+    console.log("SIGNUP ERROR:", error);
+
+    // 🔥 HANDLE DUPLICATE ERROR (IMPORTANT)
+    if (error.code === 11000) {
+      return res.json({ success: false, message: "User already exists" });
+    }
+
     res.json({ success: false, message: error.message });
   }
 });
@@ -63,17 +82,22 @@ app.post("/login", async (req, res) => {
   console.log("Login request:", email);
 
   try {
-    const user = await User.findOne({ email, password });
+    const cleanEmail = email.toLowerCase().trim();
+
+    const user = await User.findOne({
+      email: cleanEmail,
+      password,
+    });
 
     if (user) {
-      res.json({ success: true });
+      res.json({ success: true, message: "Login success" });
     } else {
       res.json({ success: false, message: "Invalid credentials" });
     }
 
   } catch (error) {
     console.log("LOGIN ERROR:", error);
-    res.json({ success: false });
+    res.json({ success: false, message: "Login failed" });
   }
 });
 
