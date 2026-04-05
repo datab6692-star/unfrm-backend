@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const mongoose = require("mongoose");
+const bcrypt = require("bcrypt");
 
 const app = express();
 
@@ -31,32 +32,31 @@ app.get("/", (req, res) => {
   res.send("UNFRM Backend Running 🚀");
 });
 
-/// 🔥 SIGNUP
+/// 🔥 SIGNUP (WITH BCRYPT)
 app.post("/signup", async (req, res) => {
   const { email, password } = req.body;
 
-  console.log("Signup request:", email, password);
+  console.log("Signup request:", email);
 
   try {
-    // ✅ Validation
     if (!email || !password) {
       return res.json({ success: false, message: "Missing fields" });
     }
 
-    // ✅ Normalize email (IMPORTANT FIX)
     const cleanEmail = email.toLowerCase().trim();
 
-    // ✅ Check existing
     const userExists = await User.findOne({ email: cleanEmail });
 
     if (userExists) {
       return res.json({ success: false, message: "User already exists" });
     }
 
-    // ✅ Save user
+    /// 🔐 HASH PASSWORD
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     const newUser = await User.create({
       email: cleanEmail,
-      password,
+      password: hashedPassword,
     });
 
     console.log("User created:", newUser);
@@ -66,7 +66,6 @@ app.post("/signup", async (req, res) => {
   } catch (error) {
     console.log("SIGNUP ERROR:", error);
 
-    // 🔥 HANDLE DUPLICATE ERROR (IMPORTANT)
     if (error.code === 11000) {
       return res.json({ success: false, message: "User already exists" });
     }
@@ -75,7 +74,7 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-/// 🔥 LOGIN
+/// 🔥 LOGIN (WITH BCRYPT)
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -84,15 +83,19 @@ app.post("/login", async (req, res) => {
   try {
     const cleanEmail = email.toLowerCase().trim();
 
-    const user = await User.findOne({
-      email: cleanEmail,
-      password,
-    });
+    const user = await User.findOne({ email: cleanEmail });
 
-    if (user) {
+    if (!user) {
+      return res.json({ success: false, message: "User not found" });
+    }
+
+    /// 🔐 COMPARE PASSWORD
+    const isMatch = await bcrypt.compare(password, user.password);
+
+    if (isMatch) {
       res.json({ success: true, message: "Login success" });
     } else {
-      res.json({ success: false, message: "Invalid credentials" });
+      res.json({ success: false, message: "Wrong password" });
     }
 
   } catch (error) {
