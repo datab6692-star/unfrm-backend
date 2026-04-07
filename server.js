@@ -4,7 +4,6 @@ const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 
 const app = express();
-
 app.use(cors());
 app.use(express.json());
 
@@ -23,14 +22,14 @@ mongoose.connect(
 ////////////////////////////////////////////////////////////
 
 const UserSchema = new mongoose.Schema({
-  email: { type: String, required: true, unique: true, trim: true },
-  password: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: String,
 });
 
 const User = mongoose.model("User", UserSchema);
 
 ////////////////////////////////////////////////////////////
-/// 🔥 WISHLIST MODEL
+/// ❤️ WISHLIST MODEL
 ////////////////////////////////////////////////////////////
 
 const WishlistSchema = new mongoose.Schema({
@@ -41,201 +40,153 @@ const WishlistSchema = new mongoose.Schema({
 const Wishlist = mongoose.model("Wishlist", WishlistSchema);
 
 ////////////////////////////////////////////////////////////
-/// 🔥 USER BEHAVIOR MODEL
+/// 📊 USER BEHAVIOR
 ////////////////////////////////////////////////////////////
 
 const BehaviorSchema = new mongoose.Schema({
   email: String,
   productId: String,
-  action: String, // view / like / click
+  action: String,
   time: { type: Date, default: Date.now },
 });
 
 const Behavior = mongoose.model("Behavior", BehaviorSchema);
 
 ////////////////////////////////////////////////////////////
-/// ✅ TEST ROUTE
-////////////////////////////////////////////////////////////
-
-app.get("/", (req, res) => {
-  res.send("UNFRM Backend Running 🚀");
-});
-
-////////////////////////////////////////////////////////////
-/// 🔥 SIGNUP
+/// 🔐 SIGNUP
 ////////////////////////////////////////////////////////////
 
 app.post("/signup", async (req, res) => {
   const { email, password } = req.body;
 
-  try {
-    if (!email || !password) {
-      return res.json({ success: false, message: "Missing fields" });
-    }
+  const user = await User.findOne({ email });
 
-    const cleanEmail = email.toLowerCase().trim();
+  if (user) return res.json({ success: false });
 
-    const userExists = await User.findOne({ email: cleanEmail });
+  const hashed = await bcrypt.hash(password, 10);
 
-    if (userExists) {
-      return res.json({ success: false, message: "User already exists" });
-    }
+  await User.create({ email, password: hashed });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await User.create({
-      email: cleanEmail,
-      password: hashedPassword,
-    });
-
-    res.json({ success: true });
-
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.json({ success: false, message: "User already exists" });
-    }
-
-    res.json({ success: false, message: error.message });
-  }
+  res.json({ success: true });
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 LOGIN
+/// 🔐 LOGIN
 ////////////////////////////////////////////////////////////
 
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
-  try {
-    const cleanEmail = email.toLowerCase().trim();
+  const user = await User.findOne({ email });
 
-    const user = await User.findOne({ email: cleanEmail });
+  if (!user) return res.json({ success: false });
 
-    if (!user) {
-      return res.json({ success: false, message: "User not found" });
-    }
+  const ok = await bcrypt.compare(password, user.password);
 
-    const isMatch = await bcrypt.compare(password, user.password);
-
-    if (isMatch) {
-      res.json({ success: true });
-    } else {
-      res.json({ success: false, message: "Wrong password" });
-    }
-
-  } catch (error) {
-    res.json({ success: false, message: "Login failed" });
-  }
+  res.json({ success: ok });
 });
 
 ////////////////////////////////////////////////////////////
-/// ❤️ WISHLIST TOGGLE
+/// ❤️ TOGGLE WISHLIST
 ////////////////////////////////////////////////////////////
 
 app.post("/wishlist", async (req, res) => {
   const { email, product } = req.body;
 
-  try {
-    const exists = await Wishlist.findOne({
-      email,
-      "product.name": product.name,
-    });
+  const exists = await Wishlist.findOne({
+    email,
+    "product.name": product.name,
+  });
 
-    if (exists) {
-      await Wishlist.deleteOne({ _id: exists._id });
-      return res.json({ success: true, action: "removed" });
-    }
-
-    await Wishlist.create({ email, product });
-
-    res.json({ success: true, action: "added" });
-
-  } catch (error) {
-    console.log("WISHLIST ERROR:", error);
-    res.json({ success: false });
+  if (exists) {
+    await Wishlist.deleteOne({ _id: exists._id });
+    return res.json({ success: true, action: "removed" });
   }
+
+  await Wishlist.create({ email, product });
+
+  res.json({ success: true, action: "added" });
 });
 
 ////////////////////////////////////////////////////////////
-/// ❤️ GET USER WISHLIST
+/// ❤️ GET WISHLIST
 ////////////////////////////////////////////////////////////
 
 app.get("/wishlist", async (req, res) => {
   const { email } = req.query;
 
-  try {
-    const items = await Wishlist.find({ email });
+  const items = await Wishlist.find({ email });
 
-    const products = items.map(i => i.product);
-
-    res.json({ success: true, wishlist: products });
-
-  } catch (error) {
-    res.json({ success: false, wishlist: [] });
-  }
+  res.json({
+    wishlist: items.map(i => i.product),
+  });
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 USER BEHAVIOR TRACKING
+/// 📊 TRACK
 ////////////////////////////////////////////////////////////
 
 app.post("/track", async (req, res) => {
   const { email, productId, action } = req.body;
 
-  try {
-    await Behavior.create({
-      email,
-      productId,
-      action,
-    });
+  await Behavior.create({ email, productId, action });
 
-    res.json({ success: true });
-
-  } catch (error) {
-    console.log("TRACK ERROR:", error);
-    res.json({ success: false });
-  }
+  res.json({ success: true });
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 PRODUCTS DATA
+/// 🔥 PRODUCTS (FINAL STRUCTURE)
 ////////////////////////////////////////////////////////////
 
 const products = [
   {
+    id: "p1",
     name: "UNFRM Street Tee",
     price: 799,
-    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab",
+    images: [
+      "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab",
+      "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a",
+      "https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf"
+    ],
+    description: "Clean streetwear tee with premium cotton fit",
     link: "https://zara.com",
   },
+
   {
+    id: "p2",
     name: "Oversized Black Tee",
     price: 999,
-    image: "https://images.unsplash.com/photo-1512436991641-6745cdb1723f",
+    images: [
+      "https://images.unsplash.com/photo-1512436991641-6745cdb1723f",
+      "https://images.unsplash.com/photo-1523381210434-271e8be1f52b",
+      "https://images.unsplash.com/photo-1593030761757-71fae45fa0e7"
+    ],
+    description: "Oversized relaxed fit for GenZ street style",
     link: "https://hm.com",
   },
+
   {
+    id: "p3",
     name: "Minimal White Tee",
     price: 699,
-    image: "https://images.unsplash.com/photo-1503341504253-dff4815485f1",
+    images: [
+      "https://images.unsplash.com/photo-1503341504253-dff4815485f1",
+      "https://images.unsplash.com/photo-1520975916090-3105956dac38",
+      "https://images.unsplash.com/photo-1618354691373-d851c5c3a990"
+    ],
+    description: "Minimal everyday wear with soft fabric",
     link: "https://nike.com",
   },
 ];
-
-////////////////////////////////////////////////////////////
-/// 🔥 GET PRODUCTS
-////////////////////////////////////////////////////////////
 
 app.get("/products", (req, res) => {
   res.json({ products });
 });
 
 ////////////////////////////////////////////////////////////
-/// 🚀 START SERVER
+/// 🚀 START
 ////////////////////////////////////////////////////////////
 
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on port ${PORT} 🚀`);
+app.listen(5000, "0.0.0.0", () => {
+  console.log("Server Running 🚀");
 });
