@@ -52,6 +52,7 @@ const Behavior = mongoose.model("Behavior", new mongoose.Schema({
   time: { type: Date, default: Date.now },
 }));
 
+/// 🔥 UPDATED PRODUCT MODEL (SOCIAL READY)
 const Product = mongoose.model("Product", new mongoose.Schema({
   name: String,
   price: Number,
@@ -59,6 +60,11 @@ const Product = mongoose.model("Product", new mongoose.Schema({
   video: String,
   description: String,
   link: String,
+
+  /// ✅ NEW
+  user: String,
+  type: String, // "video" or "image"
+
   createdAt: { type: Date, default: Date.now },
 }));
 
@@ -70,16 +76,13 @@ app.post("/signup", async (req, res) => {
     const { email, password } = req.body;
 
     const exists = await User.findOne({ email });
-    if (exists) {
-      return res.json({ success: false, message: "User exists" });
-    }
+    if (exists) return res.json({ success: false });
 
     const hashed = await bcrypt.hash(password, 10);
-
     await User.create({ email, password: hashed });
 
     res.json({ success: true });
-  } catch (e) {
+  } catch {
     res.status(500).json({ success: false });
   }
 });
@@ -91,13 +94,12 @@ app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email);
     if (!user) return res.json({ success: false });
 
     const ok = await bcrypt.compare(password, user.password);
-
     res.json({ success: ok });
-  } catch (e) {
+  } catch {
     res.status(500).json({ success: false });
   }
 });
@@ -120,9 +122,9 @@ app.post("/wishlist", async (req, res) => {
     }
 
     await Wishlist.create({ email, product });
-
     res.json({ success: true, action: "added" });
-  } catch (e) {
+
+  } catch {
     res.status(500).json({ success: false });
   }
 });
@@ -136,7 +138,7 @@ app.get("/wishlist", async (req, res) => {
     res.json({
       wishlist: items.map(i => i.product),
     });
-  } catch (e) {
+  } catch {
     res.status(500).json({ wishlist: [] });
   }
 });
@@ -151,19 +153,19 @@ app.post("/track", async (req, res) => {
     await Behavior.create({ email, productId, action });
 
     res.json({ success: true });
-  } catch (e) {
+  } catch {
     res.status(500).json({ success: false });
   }
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 ADD PRODUCT (SAFE VERSION 🔥)
+/// 🔥 USER UPLOAD (MAIN FEATURE 🔥)
 ////////////////////////////////////////////////////////////
-app.post("/add-product", async (req, res) => {
+app.post("/upload-post", async (req, res) => {
   try {
-    let { name, price, images, video, description, link } = req.body;
+    let { email, video, images, description } = req.body;
 
-    /// ✅ FIX: fallback values
+    /// fallback
     if (!images || images.length === 0) {
       images = [
         "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
@@ -171,19 +173,21 @@ app.post("/add-product", async (req, res) => {
     }
 
     if (!video) video = "";
-    if (!description) description = "";
-    if (!link) link = "";
 
-    const product = await Product.create({
-      name,
-      price,
+    const type = video && video !== "" ? "video" : "image";
+
+    const post = await Product.create({
+      name: "User Post",
+      price: 0,
       images,
       video,
       description,
-      link,
+      link: "",
+      user: email,
+      type,
     });
 
-    res.json({ success: true, product });
+    res.json({ success: true, post });
 
   } catch (e) {
     console.log(e);
@@ -192,13 +196,12 @@ app.post("/add-product", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 GET PRODUCTS (CLEAN DATA 🔥)
+/// 🔥 GET FEED (SOCIAL FEED)
 ////////////////////////////////////////////////////////////
 app.get("/products", async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
 
-    /// ✅ FIX: normalize for frontend
     const clean = products.map(p => ({
       ...p._doc,
       images: p.images && p.images.length > 0
@@ -209,13 +212,13 @@ app.get("/products", async (req, res) => {
 
     res.json({ products: clean });
 
-  } catch (e) {
+  } catch {
     res.status(500).json({ products: [] });
   }
 });
 
 ////////////////////////////////////////////////////////////
-/// 🚀 START SERVER
+/// 🚀 START
 ////////////////////////////////////////////////////////////
 const PORT = process.env.PORT || 5000;
 
