@@ -8,14 +8,20 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-/// 🔥 CONNECT MONGODB (FIXED)
+////////////////////////////////////////////////////////////
+/// 🔥 CONNECT MONGODB
+////////////////////////////////////////////////////////////
+
 mongoose.connect(
   "mongodb+srv://unfrm:unfrm123@cluster0.9ftvups.mongodb.net/unfrm?retryWrites=true&w=majority"
 )
 .then(() => console.log("MongoDB Connected ✅"))
 .catch(err => console.log("Mongo Error:", err));
 
+////////////////////////////////////////////////////////////
 /// 🔥 USER MODEL
+////////////////////////////////////////////////////////////
+
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, trim: true },
   password: { type: String, required: true },
@@ -23,12 +29,42 @@ const UserSchema = new mongoose.Schema({
 
 const User = mongoose.model("User", UserSchema);
 
+////////////////////////////////////////////////////////////
+/// 🔥 WISHLIST MODEL
+////////////////////////////////////////////////////////////
+
+const WishlistSchema = new mongoose.Schema({
+  email: String,
+  product: Object,
+});
+
+const Wishlist = mongoose.model("Wishlist", WishlistSchema);
+
+////////////////////////////////////////////////////////////
+/// 🔥 USER BEHAVIOR MODEL
+////////////////////////////////////////////////////////////
+
+const BehaviorSchema = new mongoose.Schema({
+  email: String,
+  productId: String,
+  action: String, // view / like / click
+  time: { type: Date, default: Date.now },
+});
+
+const Behavior = mongoose.model("Behavior", BehaviorSchema);
+
+////////////////////////////////////////////////////////////
 /// ✅ TEST ROUTE
+////////////////////////////////////////////////////////////
+
 app.get("/", (req, res) => {
   res.send("UNFRM Backend Running 🚀");
 });
 
+////////////////////////////////////////////////////////////
 /// 🔥 SIGNUP
+////////////////////////////////////////////////////////////
+
 app.post("/signup", async (req, res) => {
   const { email, password } = req.body;
 
@@ -63,7 +99,10 @@ app.post("/signup", async (req, res) => {
   }
 });
 
+////////////////////////////////////////////////////////////
 /// 🔥 LOGIN
+////////////////////////////////////////////////////////////
+
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
 
@@ -89,7 +128,79 @@ app.post("/login", async (req, res) => {
   }
 });
 
+////////////////////////////////////////////////////////////
+/// ❤️ WISHLIST TOGGLE
+////////////////////////////////////////////////////////////
+
+app.post("/wishlist", async (req, res) => {
+  const { email, product } = req.body;
+
+  try {
+    const exists = await Wishlist.findOne({
+      email,
+      "product.name": product.name,
+    });
+
+    if (exists) {
+      await Wishlist.deleteOne({ _id: exists._id });
+      return res.json({ success: true, action: "removed" });
+    }
+
+    await Wishlist.create({ email, product });
+
+    res.json({ success: true, action: "added" });
+
+  } catch (error) {
+    console.log("WISHLIST ERROR:", error);
+    res.json({ success: false });
+  }
+});
+
+////////////////////////////////////////////////////////////
+/// ❤️ GET USER WISHLIST
+////////////////////////////////////////////////////////////
+
+app.get("/wishlist", async (req, res) => {
+  const { email } = req.query;
+
+  try {
+    const items = await Wishlist.find({ email });
+
+    const products = items.map(i => i.product);
+
+    res.json({ success: true, wishlist: products });
+
+  } catch (error) {
+    res.json({ success: false, wishlist: [] });
+  }
+});
+
+////////////////////////////////////////////////////////////
+/// 🔥 USER BEHAVIOR TRACKING
+////////////////////////////////////////////////////////////
+
+app.post("/track", async (req, res) => {
+  const { email, productId, action } = req.body;
+
+  try {
+    await Behavior.create({
+      email,
+      productId,
+      action,
+    });
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.log("TRACK ERROR:", error);
+    res.json({ success: false });
+  }
+});
+
+////////////////////////////////////////////////////////////
 /// 🔥 PRODUCTS DATA
+////////////////////////////////////////////////////////////
+
 const products = [
   {
     name: "UNFRM Street Tee",
@@ -111,12 +222,18 @@ const products = [
   },
 ];
 
-/// 🔥 GET PRODUCTS API
+////////////////////////////////////////////////////////////
+/// 🔥 GET PRODUCTS
+////////////////////////////////////////////////////////////
+
 app.get("/products", (req, res) => {
-  res.json(products);
+  res.json({ products });
 });
 
-/// 🔥 START SERVER
+////////////////////////////////////////////////////////////
+/// 🚀 START SERVER
+////////////////////////////////////////////////////////////
+
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, "0.0.0.0", () => {
