@@ -52,7 +52,6 @@ const Behavior = mongoose.model("Behavior", new mongoose.Schema({
   time: { type: Date, default: Date.now },
 }));
 
-/// ✅ NEW PRODUCT MODEL
 const Product = mongoose.model("Product", new mongoose.Schema({
   name: String,
   price: Number,
@@ -158,13 +157,34 @@ app.post("/track", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 ADD PRODUCT (IMPORTANT 🔥)
+/// 🔥 ADD PRODUCT (SAFE VERSION 🔥)
 ////////////////////////////////////////////////////////////
 app.post("/add-product", async (req, res) => {
   try {
-    const product = await Product.create(req.body);
+    let { name, price, images, video, description, link } = req.body;
+
+    /// ✅ FIX: fallback values
+    if (!images || images.length === 0) {
+      images = [
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
+      ];
+    }
+
+    if (!video) video = "";
+    if (!description) description = "";
+    if (!link) link = "";
+
+    const product = await Product.create({
+      name,
+      price,
+      images,
+      video,
+      description,
+      link,
+    });
 
     res.json({ success: true, product });
+
   } catch (e) {
     console.log(e);
     res.status(500).json({ success: false });
@@ -172,13 +192,23 @@ app.post("/add-product", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 GET PRODUCTS (FROM DB)
+/// 🔥 GET PRODUCTS (CLEAN DATA 🔥)
 ////////////////////////////////////////////////////////////
 app.get("/products", async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
 
-    res.json({ products });
+    /// ✅ FIX: normalize for frontend
+    const clean = products.map(p => ({
+      ...p._doc,
+      images: p.images && p.images.length > 0
+        ? p.images
+        : ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"],
+      video: p.video || "",
+    }));
+
+    res.json({ products: clean });
+
   } catch (e) {
     res.status(500).json({ products: [] });
   }
