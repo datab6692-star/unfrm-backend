@@ -52,7 +52,6 @@ const Behavior = mongoose.model("Behavior", new mongoose.Schema({
   time: { type: Date, default: Date.now },
 }));
 
-/// 🔥 UPDATED PRODUCT MODEL (SOCIAL READY)
 const Product = mongoose.model("Product", new mongoose.Schema({
   name: String,
   price: Number,
@@ -60,11 +59,8 @@ const Product = mongoose.model("Product", new mongoose.Schema({
   video: String,
   description: String,
   link: String,
-
-  /// ✅ NEW
   user: String,
-  type: String, // "video" or "image"
-
+  type: String,
   createdAt: { type: Date, default: Date.now },
 }));
 
@@ -159,13 +155,12 @@ app.post("/track", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 USER UPLOAD (MAIN FEATURE 🔥)
+/// 🔥 USER UPLOAD
 ////////////////////////////////////////////////////////////
 app.post("/upload-post", async (req, res) => {
   try {
     let { email, video, images, description } = req.body;
 
-    /// fallback
     if (!images || images.length === 0) {
       images = [
         "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
@@ -196,7 +191,39 @@ app.post("/upload-post", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 GET FEED (SOCIAL FEED)
+/// 🔥 ADMIN UPLOAD (MAIN FIX 🔥)
+////////////////////////////////////////////////////////////
+app.post("/admin/upload", async (req, res) => {
+  try {
+    const { video, name, price, link } = req.body;
+
+    if (!video) {
+      return res.json({ success: false, message: "Video required" });
+    }
+
+    const product = await Product.create({
+      name: name || "Product",
+      price: price || 0,
+      images: [
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
+      ],
+      video,
+      description: "Uploaded by admin",
+      link: link || "",
+      user: "admin",
+      type: "video",
+    });
+
+    res.json({ success: true, product });
+
+  } catch (e) {
+    console.log(e);
+    res.status(500).json({ success: false });
+  }
+});
+
+////////////////////////////////////////////////////////////
+/// 🔥 GET PRODUCTS
 ////////////////////////////////////////////////////////////
 app.get("/products", async (req, res) => {
   try {
