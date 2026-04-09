@@ -34,7 +34,6 @@ mongoose.connect(
 ////////////////////////////////////////////////////////////
 /// 🔥 MODELS
 ////////////////////////////////////////////////////////////
-
 const User = mongoose.model("User", new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: String,
@@ -65,7 +64,7 @@ const Product = mongoose.model("Product", new mongoose.Schema({
 }));
 
 ////////////////////////////////////////////////////////////
-/// 🔐 SIGNUP
+/// 🔐 AUTH
 ////////////////////////////////////////////////////////////
 app.post("/signup", async (req, res) => {
   try {
@@ -83,9 +82,6 @@ app.post("/signup", async (req, res) => {
   }
 });
 
-////////////////////////////////////////////////////////////
-/// 🔐 LOGIN
-////////////////////////////////////////////////////////////
 app.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -109,7 +105,7 @@ app.post("/wishlist", async (req, res) => {
 
     const exists = await Wishlist.findOne({
       email,
-      "product.name": product.name,
+      "product._id": product._id,
     });
 
     if (exists) {
@@ -129,7 +125,7 @@ app.get("/wishlist", async (req, res) => {
   try {
     const { email } = req.query;
 
-    const items = await Wishlist.find({ email });
+    const items = await Wishlist.find({ email }).lean();
 
     res.json({
       wishlist: items.map(i => i.product),
@@ -155,21 +151,21 @@ app.post("/track", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 USER UPLOAD
+/// 🔥 UPLOAD (USER)
 ////////////////////////////////////////////////////////////
 app.post("/upload-post", async (req, res) => {
   try {
     let { email, video, images, description } = req.body;
+
+    if (!video || video === "") {
+      return res.json({ success: false, message: "Video required" });
+    }
 
     if (!images || images.length === 0) {
       images = [
         "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
       ];
     }
-
-    if (!video) video = "";
-
-    const type = video && video !== "" ? "video" : "image";
 
     const post = await Product.create({
       name: "User Post",
@@ -179,23 +175,22 @@ app.post("/upload-post", async (req, res) => {
       description,
       link: "",
       user: email,
-      type,
+      type: "video",
     });
 
     res.json({ success: true, post });
 
   } catch (e) {
-    console.log(e);
     res.status(500).json({ success: false });
   }
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 ADMIN UPLOAD (MAIN FIX 🔥)
+/// 🔥 ADMIN UPLOAD
 ////////////////////////////////////////////////////////////
 app.post("/admin/upload", async (req, res) => {
   try {
-    const { video, name, price, link } = req.body;
+    const { video, name, price, link, thumbnail } = req.body;
 
     if (!video) {
       return res.json({ success: false, message: "Video required" });
@@ -205,6 +200,7 @@ app.post("/admin/upload", async (req, res) => {
       name: name || "Product",
       price: price || 0,
       images: [
+        thumbnail ||
         "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
       ],
       video,
@@ -216,30 +212,47 @@ app.post("/admin/upload", async (req, res) => {
 
     res.json({ success: true, product });
 
-  } catch (e) {
-    console.log(e);
+  } catch {
     res.status(500).json({ success: false });
   }
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 GET PRODUCTS
+/// 🔥 GET PRODUCTS (PRO FEED API)
 ////////////////////////////////////////////////////////////
 app.get("/products", async (req, res) => {
   try {
-    const products = await Product.find().sort({ createdAt: -1 });
+    const page = parseInt(req.query.page) || 1;
+    const limit = 5; // 🔥 only 5 videos per request
+    const skip = (page - 1) * limit;
+
+    const products = await Product.find({
+      video: { $ne: "", $exists: true } // 💀 only valid videos
+    })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean();
 
     const clean = products.map(p => ({
-      ...p._doc,
-      images: p.images && p.images.length > 0
+      _id: p._id,
+      name: p.name,
+      price: p.price,
+      video: p.video,
+      link: p.link,
+      description: p.description,
+      images: p.images?.length
         ? p.images
         : ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"],
-      video: p.video || "",
     }));
 
-    res.json({ products: clean });
+    res.json({
+      page,
+      count: clean.length,
+      products: clean,
+    });
 
-  } catch {
+  } catch (e) {
     res.status(500).json({ products: [] });
   }
 });
