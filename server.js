@@ -32,6 +32,23 @@ mongoose.connect(
 .catch(err => console.log("Mongo Error:", err));
 
 ////////////////////////////////////////////////////////////
+/// 🔥 VIDEO OPTIMIZER (HLS STREAM 🔥)
+////////////////////////////////////////////////////////////
+const toHLS = (url) => {
+  if (!url) return "";
+
+  if (url.includes(".m3u8")) return url;
+
+  try {
+    return url
+      .replace("/upload/", "/upload/sp_auto,q_auto,f_auto/")
+      .replace(".mp4", ".m3u8");
+  } catch {
+    return url;
+  }
+};
+
+////////////////////////////////////////////////////////////
 /// 🔥 MODELS
 ////////////////////////////////////////////////////////////
 const User = mongoose.model("User", new mongoose.Schema({
@@ -151,41 +168,6 @@ app.post("/track", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 UPLOAD (USER)
-////////////////////////////////////////////////////////////
-app.post("/upload-post", async (req, res) => {
-  try {
-    let { email, video, images, description } = req.body;
-
-    if (!video || video === "") {
-      return res.json({ success: false, message: "Video required" });
-    }
-
-    if (!images || images.length === 0) {
-      images = [
-        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
-      ];
-    }
-
-    const post = await Product.create({
-      name: "User Post",
-      price: 0,
-      images,
-      video,
-      description,
-      link: "",
-      user: email,
-      type: "video",
-    });
-
-    res.json({ success: true, post });
-
-  } catch (e) {
-    res.status(500).json({ success: false });
-  }
-});
-
-////////////////////////////////////////////////////////////
 /// 🔥 ADMIN UPLOAD
 ////////////////////////////////////////////////////////////
 app.post("/admin/upload", async (req, res) => {
@@ -218,16 +200,16 @@ app.post("/admin/upload", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 GET PRODUCTS (PRO FEED API)
+/// 🔥 GET PRODUCTS (ULTRA FAST FEED)
 ////////////////////////////////////////////////////////////
 app.get("/products", async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = 5; // 🔥 only 5 videos per request
+    const limit = 5;
     const skip = (page - 1) * limit;
 
     const products = await Product.find({
-      video: { $ne: "", $exists: true } // 💀 only valid videos
+      video: { $ne: "", $exists: true }
     })
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -238,13 +220,21 @@ app.get("/products", async (req, res) => {
       _id: p._id,
       name: p.name,
       price: p.price,
-      video: p.video,
+
+      /// 🔥 HLS VIDEO (NO BUFFER)
+      video: toHLS(p.video),
+
       link: p.link,
       description: p.description,
-      images: p.images?.length
-        ? p.images
-        : ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"],
+
+      /// 🔥 THUMBNAIL
+      thumbnail: p.images?.length
+        ? p.images[0]
+        : "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab",
     }));
+
+    /// 🚀 CACHE BOOST
+    res.set("Cache-Control", "public, max-age=60");
 
     res.json({
       page,
