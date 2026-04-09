@@ -32,23 +32,6 @@ mongoose.connect(
 .catch(err => console.log("Mongo Error:", err));
 
 ////////////////////////////////////////////////////////////
-/// 🔥 VIDEO OPTIMIZER (HLS STREAM 🔥)
-////////////////////////////////////////////////////////////
-const toHLS = (url) => {
-  if (!url) return "";
-
-  if (url.includes(".m3u8")) return url;
-
-  try {
-    return url
-      .replace("/upload/", "/upload/sp_auto,q_auto,f_auto/")
-      .replace(".mp4", ".m3u8");
-  } catch {
-    return url;
-  }
-};
-
-////////////////////////////////////////////////////////////
 /// 🔥 MODELS
 ////////////////////////////////////////////////////////////
 const User = mongoose.model("User", new mongoose.Schema({
@@ -168,14 +151,49 @@ app.post("/track", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
+/// 🔥 UPLOAD (USER)
+////////////////////////////////////////////////////////////
+app.post("/upload-post", async (req, res) => {
+  try {
+    let { email, video, images, description } = req.body;
+
+    if (!video || !video.startsWith("http")) {
+      return res.json({ success: false, message: "Valid video URL required" });
+    }
+
+    if (!images || images.length === 0) {
+      images = [
+        "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"
+      ];
+    }
+
+    const post = await Product.create({
+      name: "User Post",
+      price: 0,
+      images,
+      video,
+      description,
+      link: "",
+      user: email,
+      type: "video",
+    });
+
+    res.json({ success: true, post });
+
+  } catch {
+    res.status(500).json({ success: false });
+  }
+});
+
+////////////////////////////////////////////////////////////
 /// 🔥 ADMIN UPLOAD
 ////////////////////////////////////////////////////////////
 app.post("/admin/upload", async (req, res) => {
   try {
     const { video, name, price, link, thumbnail } = req.body;
 
-    if (!video) {
-      return res.json({ success: false, message: "Video required" });
+    if (!video || !video.startsWith("http")) {
+      return res.json({ success: false, message: "Valid video required" });
     }
 
     const product = await Product.create({
@@ -187,7 +205,7 @@ app.post("/admin/upload", async (req, res) => {
       ],
       video,
       description: "Uploaded by admin",
-      link: link || "",
+      link: link && link.startsWith("http") ? link : "",
       user: "admin",
       type: "video",
     });
@@ -200,7 +218,7 @@ app.post("/admin/upload", async (req, res) => {
 });
 
 ////////////////////////////////////////////////////////////
-/// 🔥 GET PRODUCTS (ULTRA FAST FEED)
+/// 🔥 GET PRODUCTS (ULTRA CLEAN FEED)
 ////////////////////////////////////////////////////////////
 app.get("/products", async (req, res) => {
   try {
@@ -209,32 +227,27 @@ app.get("/products", async (req, res) => {
     const skip = (page - 1) * limit;
 
     const products = await Product.find({
-      video: { $ne: "", $exists: true }
+      video: { $exists: true, $ne: "" }
     })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
 
-    const clean = products.map(p => ({
-      _id: p._id,
-      name: p.name,
-      price: p.price,
-
-      /// 🔥 HLS VIDEO (NO BUFFER)
-      video: toHLS(p.video),
-
-      link: p.link,
-      description: p.description,
-
-      /// 🔥 THUMBNAIL
-      thumbnail: p.images?.length
-        ? p.images[0]
-        : "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab",
-    }));
-
-    /// 🚀 CACHE BOOST
-    res.set("Cache-Control", "public, max-age=60");
+    /// 🔥 FILTER INVALID VIDEOS
+    const clean = products
+      .filter(p => p.video && p.video.startsWith("http"))
+      .map(p => ({
+        _id: p._id,
+        name: p.name || "Product",
+        price: p.price || 0,
+        video: p.video,
+        link: p.link && p.link.startsWith("http") ? p.link : "",
+        description: p.description || "",
+        images: p.images?.length
+          ? p.images
+          : ["https://images.unsplash.com/photo-1521572163474-6864f9cf17ab"],
+      }));
 
     res.json({
       page,
@@ -242,7 +255,7 @@ app.get("/products", async (req, res) => {
       products: clean,
     });
 
-  } catch (e) {
+  } catch {
     res.status(500).json({ products: [] });
   }
 });
